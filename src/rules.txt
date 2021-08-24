@@ -1,0 +1,30 @@
+8*8 board
+queen always starts on cell of its own color.
+White always moves first.
+
+pawn: a pawn can optionally move two squares forward on its first move. It always captures diagonally.
+When a pawn reaches the furthest line of the board, 
+you must promote it to a *different* piece: rook, bishop, knight or queen.
+It doesn't have to be one of your own pieces that's already captured.
+
+Player must move out of check.
+Stalemate: neither king is in check, but no other legal move.
+
+Ways to draw (we only handle a couple of them):
+- stalemate
+- both players agree to a draw
+- if the exact same position has repeated three times, either player can claim a draw.
+- If 50 moves have occurred without a pawn move or a capture either player can claim a draw.
+- neither players have enough pieces to cause checks (e.g. king versus king)
+- bunch of other complicated situations
+
+Castling:
+- move king two squares, move rook next to king on the other side.
+Cannot castle when in check, into check or through a check (where the square skipped by the king is threatened by capture)
+Cannot castle if there are any pieces between the king and the rook.
+Cannot castle if the king or the rook you're castling with have already moved before; it must be their first move.
+Can castle either kingside or queenside.
+
+En Passant:
+If your opponent moves a pawn two squares right next to a pawn of yours, then on the next turn AND ONLY THAT TURN, 
+you can move your pawn diagonally behind your opponent's pawn and capture it as if it were there.

@@ -1,0 +1,12 @@
+*.dll
+*.obj
+*.exe
+*.pdb
+*.lib
+*.exp
+*.rdbg
+build/chess_asset_file
+build/chess_save
+build/assets/*.png
+src/stb_truetype.h
+src/png.cpp
