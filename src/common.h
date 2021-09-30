@@ -1,5 +1,11 @@
 #include <stdint.h>
 
+#if COMPILER_MSVC
+#define CompilerWriteBarrier _WriteBarrier();
+#else
+#define CompilerWriteBarrier asm volatile("" ::: "memory")
+#endif
+
 typedef int8_t s8;
 typedef int16_t s16;
 typedef int32_t s32;

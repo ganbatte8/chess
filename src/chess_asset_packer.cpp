@@ -3,11 +3,11 @@
 #include "stb_truetype.h"
 
 
+#if COMPILER_MSVC
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-
-PLATFORM_PUSH_READ_FILE(Win32PushReadFile)
+PLATFORM_PUSH_READ_FILE(PushReadFile)
 {
     string Result = {};
     
@@ -50,7 +50,7 @@ PLATFORM_PUSH_READ_FILE(Win32PushReadFile)
     return Result;
 }
 
-PLATFORM_WRITE_FILE(Win32WriteFile)
+PLATFORM_WRITE_FILE(WriteFile)
 {
     b32 Result = false;
     
@@ -81,6 +81,58 @@ PLATFORM_WRITE_FILE(Win32WriteFile)
     return Result;
 }
 
+#else
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <sys/mman.h>
+#include <stdio.h>
+
+PLATFORM_PUSH_READ_FILE(PushReadFile)
+{
+    string Result = {};
+    
+    int FileDescriptor = open(Filename, O_RDONLY);
+    if (FileDescriptor >= 0)
+    {
+        struct stat FileInfo = {};
+        fstat(FileDescriptor, &FileInfo);
+        Result.Size = FileInfo.st_size;
+        u32 AvailableSize = Arena->Size - Arena->Used;
+        if (Result.Size <= AvailableSize)
+        {
+            Result.Base = PushArray(Arena, Result.Size, char);
+            u32 WrittenSize = read(FileDescriptor, Result.Base, Result.Size);
+            if (WrittenSize != Result.Size)
+                Result.Base = 0;
+        }
+    }
+    else
+    {
+        perror("open failed");
+    }
+    close(FileDescriptor);
+    
+    return Result;
+}
+
+PLATFORM_WRITE_FILE(WriteFile)
+{
+    b32 Result = false;
+    
+    int FileDescriptor = open(Filename, O_CREAT | O_WRONLY, 0777);
+    if (FileDescriptor >= 0)
+    {
+        u32 WrittenSize = write(FileDescriptor, Memory, Size);
+        if (WrittenSize == Size)
+            Result = true;
+    }
+    close(FileDescriptor);
+    return Result;
+}
+
+#endif
 
 
 struct glyph
@@ -178,12 +230,12 @@ struct bitmap_header
 internal asset_file_header *
 TestLoadAssetFile(memory_arena *Arena, char *Filename)
 {
-    string File = Win32PushReadFile(Arena, Filename);
+    string File = PushReadFile(Arena, Filename);
     asset_file_header *Result = 0;
     
     while (!File.Base)
     {
-        File = Win32PushReadFile(Arena, Filename);
+        File = PushReadFile(Arena, Filename);
     }
     
     if (File.Base)
@@ -232,14 +284,12 @@ internal void
 LoadBitmapData(memory_arena *PackfileArena, memory_arena *ReadArena, bitmap *Bitmap, char* Filename)
 {
     temporary_memory ReadMem = BeginTemporaryMemory(ReadArena);
-    string ReadFile = Win32PushReadFile(ReadArena, Filename);
+    string ReadFile = PushReadFile(ReadArena, Filename);
     Assert(ReadFile.Base);
     
     
     if (ReadFile.Base)
     {
-        bitmap Result = {};
-        
         bitmap_header *Header = (bitmap_header *)ReadFile.Base;
         
         Bitmap->Width = Header->Width;
@@ -314,20 +364,21 @@ LoadBitmapData(memory_arena *PackfileArena, memory_arena *ReadArena, bitmap *Bit
 }
 
 
-
 internal void
 LoadFont(memory_arena *PackfileArena, memory_arena *ReadArena, font *Font, char *Filename, 
          f32 PixelHeight = 32.0f)
 {
     temporary_memory ReadMem = BeginTemporaryMemory(ReadArena);
-    string FontFile = Win32PushReadFile(ReadArena, Filename);
+    string FontFile = PushReadFile(ReadArena, Filename);
     
     stbtt_fontinfo Info;
     
     Assert(FontFile.Base);
     
+    
     if (FontFile.Base)
     {
+        printf("Successfully read font file...\n");
         stbtt_InitFont(&Info, (u8 *)FontFile.Base,
                        stbtt_GetFontOffsetForIndex((u8 *)FontFile.Base, 0));
         
@@ -336,6 +387,7 @@ LoadFont(memory_arena *PackfileArena, memory_arena *ReadArena, font *Font, char 
         stbtt_GetFontBoundingBox(&Info, &Font->Box.MinX, &Font->Box.MinY,
                                  &Font->Box.MaxX, &Font->Box.MaxY);
         
+        printf("About to loop through code points\n");
         // NOTE(vincent): ascii values should coincide with codepoint values
         char *CodepointTable = CHAR_TABLE;  
         
@@ -393,6 +445,7 @@ LoadFont(memory_arena *PackfileArena, memory_arena *ReadArena, font *Font, char 
             }
             
             ++Glyph;
+            printf("TableIndex %d / %lu done \n", TableIndex, sizeof(CHAR_TABLE)-1);
         }
     }
     EndTemporaryMemory(ReadMem);
@@ -400,7 +453,12 @@ LoadFont(memory_arena *PackfileArena, memory_arena *ReadArena, font *Font, char 
 
 int main()
 {
+#if COMPILER_MSVC
     void *Memory = VirtualAlloc(0, Gigabytes(1), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+#else
+    void *Memory = 
+        mmap(0, Gigabytes(1), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+#endif
     Assert(Memory);
     
     memory_arena Arena;
@@ -412,25 +470,46 @@ int main()
     
 #define LoadBMP(Bitmap, Filename) LoadBitmapData(&PackfileArena, &Arena, &Header->Bitmap, Filename);
     LoadBMP(WhitePawn, "assets/white_pawn.bmp");
+    printf("loaded white_pawn.bmp\n");
     LoadBMP(WhiteRook, "assets/white_rook.bmp");
+    printf("loaded white_rook.bmp\n");
     LoadBMP(WhiteKnight, "assets/white_knight.bmp");
+    printf("loaded white_knight.bmp\n");
     LoadBMP(WhiteBishop, "assets/white_bishop.bmp");
+    printf("loaded white_bishop.bmp\n");
     LoadBMP(WhiteKing, "assets/white_king.bmp");
+    printf("loaded white_king.bmp\n");
     LoadBMP(WhiteQueen, "assets/white_queen.bmp");
+    printf("loaded white_queen.bmp\n");
     
     LoadBMP(BlackPawn, "assets/black_pawn.bmp");
+    printf("loaded black_pawn.bmp\n");
     LoadBMP(BlackRook, "assets/black_rook.bmp");
+    printf("loaded black_rook.bmp\n");
     LoadBMP(BlackKnight, "assets/black_knight.bmp");
+    printf("loaded black_knight.bmp\n");
     LoadBMP(BlackBishop, "assets/black_bishop.bmp");
+    printf("loaded black_bishop.bmp\n");
     LoadBMP(BlackKing, "assets/black_king.bmp");
+    printf("loaded black_king.bmp\n");
     LoadBMP(BlackQueen, "assets/black_queen.bmp");
+    printf("loaded black_queen.bmp\n");
     
+    
+#if COMPILER_MSVC
     LoadFont(&PackfileArena, &Arena, &Header->Font, "C:\\Windows\\Fonts\\segoeui.ttf");
+#else
+    LoadFont(&PackfileArena, &Arena, &Header->Font, "/usr/share/fonts/TTF/Inconsolata-Regular.ttf`");
+#endif
     
+    printf("LoadFont done\n");
     
+    WriteFile("chess_asset_file", PackfileArena.Used, PackfileArena.Base);
     
-    Win32WriteFile("chess_asset_file", PackfileArena.Used, PackfileArena.Base);
+    printf("WriteFile done\n");
+    
     TestLoadAssetFile(&Arena, "chess_asset_file");
+    printf("Test done, your finished\n");
     
     return 0;
 }

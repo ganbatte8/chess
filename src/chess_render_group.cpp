@@ -29,7 +29,7 @@ PushRenderElement_(render_group *Group, u32 Size, render_entry_type Type)
     Size += sizeof(render_entry_header);
     Assert(Commands->PushBufferSize + Size <= Commands->MaxPushBufferSize);
     render_entry_header *Header = 
-    (render_entry_header *)(Commands->PushBufferBase + Commands->PushBufferSize);
+        (render_entry_header *)(Commands->PushBufferBase + Commands->PushBufferSize);
     Header->Type = Type;
     Result = (u8 *)Header + sizeof(*Header);
     Commands->PushBufferSize += Size;
@@ -171,9 +171,8 @@ inline void
 PushText(render_group *RenderGroup, char *String, font *Font, f32 Scale, v2 P, v4 Color)
 {
     char *C = String;
-    rectangle2i FontBox = Font->Box;
+    //rectangle2i FontBox = Font->Box;
     v2 CurrentP = P;
-    char PreviousChar = 0;
     s32 PreviousGlyphIndex = -1;
     while (*C)
     {
@@ -202,7 +201,7 @@ PushText(render_group *RenderGroup, char *String, font *Font, f32 Scale, v2 P, v
         v2 AdjustedP = CurrentP + Scale * V2i(Glyph->Box.MinX, -Glyph->Box.MaxY);
         PushBitmap(RenderGroup, &Glyph->Bitmap, AdjustedP, XAxis, YAxis, Color);
         CurrentP += Font->SF * V2(GlyphAdvanceWidth, 0);
-        PreviousChar = *C;
+        PreviousGlyphIndex = GlyphIndex;
         C++;
     }
 }
@@ -215,7 +214,7 @@ PushNumber(render_group *Group, u32 Number, font *Font, f32 Scale, v2 P, v4 Colo
     char *Dest = String;
     
     s32 DigitCount = 0;
-    for (; DigitCount < ArrayCount(Chars) && Number; ++DigitCount)
+    for (; DigitCount < (s32)ArrayCount(Chars) && Number; ++DigitCount)
     {
         Chars[DigitCount] = (Number % 10) + '0';
         Number /= 10;

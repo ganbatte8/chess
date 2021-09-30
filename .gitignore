@@ -5,8 +5,14 @@
 *.lib
 *.exp
 *.rdbg
+*.so
+*.willbeso
 build/chess_asset_file
 build/chess_save
 build/assets/*.png
+build/chess_asset_packer
+build/chess_asset_file
+build/chess_save
+build/linux_chess
 src/stb_truetype.h
 src/png.cpp

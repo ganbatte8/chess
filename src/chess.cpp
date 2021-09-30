@@ -156,14 +156,12 @@ struct get_piece_result
     b32 IsWhite;
 };
 
-
 struct decision
 {
     chess_piece *Piece;
     destination Destination;
     chess_piece_type PromotionType;
 };
-
 
 struct good_decision_result
 {
@@ -269,7 +267,7 @@ struct game_state
     
     repeat_clocks RepeatClocks;
     
-    render_group RenderGroup;
+    render_group RenderGroup; 
     
     game_mode PreviousMode;
     game_mode GameMode;
@@ -280,14 +278,12 @@ struct game_state
     
     b32 ShouldUpdateBoardMovingVectors;
     
-    bitmap BoardBitmap;
+    bitmap BoardBitmap;         // TODO(vincent): 
     
 #define MAX_GAMES_COUNT 100
     chess_game_state Games[MAX_GAMES_COUNT];
     
-    f32 SaveT;
-    
-    asset_header *Assets;
+    asset_header *Assets;       // TODO(vincent): 
 };
 
 internal v2
@@ -300,7 +296,7 @@ GetBoardSpaceV2(u32 Row, u32 Column)
 }
 
 
-#define MOVE_PIECE_DURATION 6.0f
+#define MOVE_PIECE_DURATION .3f
 
 internal void
 InitChessPiece(chess_piece *Piece, chess_piece_type Type, u32 Row, u32 Column, u32 Index)
@@ -675,7 +671,7 @@ PushDestIfFreeOrCapturableAndNoCheck(chess_game_state *Game, chess_piece *Moving
 }
 
 #define AssertInBounds(Row, Column) \
-Assert(0 <= Row && Row <= 7  &&  0 <= Column && Column <= 7)
+Assert(0 <= (s32)Row && Row <= 7  &&  0 <= (s32)Column && Column <= 7)
 
 
 
@@ -846,7 +842,7 @@ internal void
 PushDiagPawnDestIfLegal(chess_game_state *Game, chess_piece *Piece, u32 CurrentR, u32 EnPassantR, 
                         u32 DestR, u32 DestC, b32 MoverIsWhite)
 {
-    Assert(0 <= DestR && DestR <= 7  &&  0 <= DestC && DestC <= 7);
+    Assert(DestR <= 7  &&  DestC <= 7);
     
     b32 RegularCapture;
     if (MoverIsWhite)
@@ -1277,8 +1273,8 @@ internal b32
 InputRepeatClockAdvance(repeat_clock *Clock, b32 IsPressed, f32 dt)
 {
     b32 Repeat = false;  // will also be set to true if new press
-    f32 FirstRepeat = 5.0f;
-    f32 RepeatInterval = 2.0f;
+    f32 FirstRepeat = .3f;
+    f32 RepeatInterval = .1f;
     if (!IsPressed)
     {
         Clock->Phase = 0;
@@ -1321,23 +1317,11 @@ UpdateCursor(game_input *Input, chess_game_state *Game, render_group *RenderGrou
     
     if (StickVector.x != 0.0f || StickVector.y != 0.0f)
     {
-        f32 Speed = 0.12f;
+        f32 Speed = 2.5f;
         v2 DeltaP = Speed * Input->dtForFrame * StickVector;
         v2 NewP = Cursor->P.Current + DeltaP;
-#if 0
-        // wrapping version
-        if (NewP.x < -1.0f)
-            NewP.x += 2.0f;
-        if (NewP.x > 1.0f)
-            NewP.x -= 2.0f;
-        if (NewP.y < -1.0f)
-            NewP.y += 2.0f;
-        if (NewP.y > 1.0f)
-            NewP.y -= 2.0f;
-#else
-        // clamping version
+        
         NewP = Clamp11Vector(NewP);
-#endif
         
         Cursor->P.Current = NewP;
         Cursor->P.Clock.Elapsed = 0.0f;
@@ -1355,9 +1339,6 @@ UpdateCursor(game_input *Input, chess_game_state *Game, render_group *RenderGrou
         if (Input->MouseMoved)
         {
             v2 MouseVector = GetMouseVector(Input, RenderGroup);
-            v2 MouseRectDim = V2(0.01f, 0.01f);
-            v2 MouseRectMin = MouseVector - 0.5f*MouseRectDim;
-            v2 MouseRectMax = MouseRectMin + MouseRectDim;
             
             v2 BoardDim = Board->Dim.Current;
             v2 BoardP = Board->P.Current;
@@ -1420,7 +1401,7 @@ UpdateCursor(game_input *Input, chess_game_state *Game, render_group *RenderGrou
             JumpCursorToNextPiece(Game, Pieces, ChessPieceType_Pawn);
         
         v2 NewEndP = GetBoardSpaceV2(Cursor->Row, Cursor->Column);
-#define MOVE_CURSOR_DURATION 2.0f
+#define MOVE_CURSOR_DURATION .1f
         if (!VectorsEqual(Cursor->P.End, NewEndP))
             InitMovingV2FromCurrent(&Cursor->P, NewEndP, MOVE_CURSOR_DURATION);
     }
@@ -1802,7 +1783,6 @@ GetRandomDecision(chess_game_state *Game, random_series *Series)
     
     Assert(RandomPiece && RandomDestination.DestCode != 0xff);
     u32 DestRow = RandomDestination.DestCode & 7 ;
-    u32 DestCol = (RandomDestination.DestCode >> 3) & 7;
     chess_piece_type PromotionType = ChessPieceType_Empty;
     if (RandomPiece->Type == ChessPieceType_Pawn && 
         (DestRow == 7 || DestRow == 0))
@@ -2126,20 +2106,20 @@ PLATFORM_WORK_QUEUE_CALLBACK(GetGoodDecision)
         if (Game.Blacks[i].Destinations)
         {
             Game.Blacks[i].Destinations = 
-            (destination *)((u8 *)&Game + 
-                            ((u8 *)Game_->Blacks[i].Destinations - (u8 *)Game_));
+                (destination *)((u8 *)&Game + 
+                                ((u8 *)Game_->Blacks[i].Destinations - (u8 *)Game_));
         }
         if (Game.Whites[i].Destinations)
         {
             Game.Whites[i].Destinations = 
-            (destination *)((u8 *)&Game + 
-                            ((u8 *)Game_->Whites[i].Destinations - (u8 *)Game_));
+                (destination *)((u8 *)&Game + 
+                                ((u8 *)Game_->Whites[i].Destinations - (u8 *)Game_));
         }
     }
     Game.SelectedPiece.Piece =
-    (chess_piece *)((u8 *)&Game + ((u8 *)Game_->SelectedPiece.Piece - (u8 *)Game_));
+        (chess_piece *)((u8 *)&Game + ((u8 *)Game_->SelectedPiece.Piece - (u8 *)Game_));
     Game.PieceOnCursor.Piece = 
-    (chess_piece *)((u8 *)&Game + ((u8 *)Game_->PieceOnCursor.Piece - (u8 *)Game_));
+        (chess_piece *)((u8 *)&Game + ((u8 *)Game_->PieceOnCursor.Piece - (u8 *)Game_));
     
     
     
@@ -2174,208 +2154,206 @@ PLATFORM_WORK_QUEUE_CALLBACK(GetGoodDecision)
     Goto_StageExploration:
     
     if (!Params->ShouldContinue)
-    {
         goto Goto_EndExploration;
-    }
     
-    Assert(Context.CurrentDepth < MaxDepth);
-    minimax_stage *Stage = Context.Stages + Context.CurrentDepth;
-    chess_piece *Pieces = Game.BlackIsPlaying ? Game.Blacks : Game.Whites;
-    
-    if (Stage->DecisionsCount == 0)
     {
-        // NOTE(vincent): Push decisions in two passes: those that involve a capture on
-        // the first pass, and then those that don't on the second pass.
-        // This is the cheapest/simplest way to reorder nodes to get some decent pruning.
+        Assert(Context.CurrentDepth < MaxDepth);
+        minimax_stage *Stage = Context.Stages + Context.CurrentDepth;
+        chess_piece *Pieces = Game.BlackIsPlaying ? Game.Blacks : Game.Whites;
         
-        for (u32 PieceIndex = 0; PieceIndex < 16; ++PieceIndex)
+        if (Stage->DecisionsCount == 0)
         {
-            chess_piece *Piece = Pieces + PieceIndex;
-            u32 PieceDestCount = Piece->DestinationsCount;
-            for (u32 DestIndex = 0; DestIndex < PieceDestCount; ++DestIndex)
+            // NOTE(vincent): Push decisions in two passes: those that involve a capture on
+            // the first pass, and then those that don't on the second pass.
+            // This is the cheapest/simplest way to reorder nodes to get some decent pruning.
+            
+            for (u32 PieceIndex = 0; PieceIndex < 16; ++PieceIndex)
             {
-                if (Piece->Destinations[DestIndex].DestCode >> 6)
+                chess_piece *Piece = Pieces + PieceIndex;
+                u32 PieceDestCount = Piece->DestinationsCount;
+                for (u32 DestIndex = 0; DestIndex < PieceDestCount; ++DestIndex)
                 {
-                    decision *Dec = Stage->Decisions + Stage->DecisionsCount;
-                    Dec->Piece = Piece;
-                    Dec->Destination.DestCode = Piece->Destinations[DestIndex].DestCode;
-                    ++Stage->DecisionsCount;
+                    if (Piece->Destinations[DestIndex].DestCode >> 6)
+                    {
+                        decision *Dec = Stage->Decisions + Stage->DecisionsCount;
+                        Dec->Piece = Piece;
+                        Dec->Destination.DestCode = Piece->Destinations[DestIndex].DestCode;
+                        ++Stage->DecisionsCount;
+                    }
                 }
-            }
-        }
-        
-        for (u32 PieceIndex = 0; PieceIndex < 16; ++PieceIndex)
-        {
-            chess_piece *Piece = Pieces + PieceIndex;
-            u32 PieceDestCount = Piece->DestinationsCount;
-            for (u32 DestIndex = 0; DestIndex < PieceDestCount; ++DestIndex)
-            {
-                if ((Piece->Destinations[DestIndex].DestCode >> 6) == 0)
-                {
-                    decision *Dec = Stage->Decisions + Stage->DecisionsCount;
-                    Dec->Piece = Piece;
-                    Dec->Destination.DestCode = Piece->Destinations[DestIndex].DestCode;
-                    ++Stage->DecisionsCount;
-                }
-            }
-        }
-    }
-    
-    for (; Stage->DecisionIndex < Stage->DecisionsCount; ++Stage->DecisionIndex)
-    {
-        Assert(Game.BlackIsPlaying == (b32)(RootPlayerIsBlack ^ (Context.CurrentDepth & 1)));
-        
-        // NOTE(vincent): Apply move
-        decision Decision = Stage->Decisions[Stage->DecisionIndex];
-        s32 DestRow = Decision.Destination.DestCode & 7;
-        s32 DestCol = (Decision.Destination.DestCode >> 3) & 7;
-        Game.Cursor.Row = DestRow;
-        Game.Cursor.Column = DestCol;
-        Game.PieceOnCursor = GetPiece(Game.Blacks, Game.Whites,
-                                      Game.Cursor.Row, Game.Cursor.Column);
-        Assert(!Game.GameIsOver);
-        MovePieceToCursor(&Game, Decision.Piece, Decision.Destination.DestCode);
-        if (Game.PromotingPawn)
-        {
-            Game.PromotingPawn = false;
-            Decision.Piece->Type = ChessPieceType_Queen;
-            history_entry *Entry = Game.History.Entries + Game.History.EntryCount-1;
-            Decision.PromotionType = ChessPieceType_Queen;
-            Entry->Special |= 7;
-            MovePieceAfterwork(&Game);
-        }
-        else
-            Decision.PromotionType = ChessPieceType_Empty;
-        Assert(!Game.BlackIsPlaying == (b32)(RootPlayerIsBlack ^ (Context.CurrentDepth & 1)));
-        
-        if (Context.CurrentDepth == 0)
-            LastTopDecision = Decision;
-        
-        f32 Value = 99999.0f;
-        
-        if (Game.RunningState == ChessGameRunningState_Checkmate)
-            Value = Game.BlackIsPlaying ? 5000 : -5000;
-        else if (Game.RunningState == ChessGameRunningState_Stalemate)
-            Value = 0;
-        else if (Context.CurrentDepth == MaxDepth - 1)
-            Value = HeuristicEvaluation(&Game, Series);
-        
-        if (Value != 99999.0f)
-        {
-            if (Game.BlackIsPlaying && Value > Stage->Alpha)
-            {
-                if (Value >= Stage->Beta)
-                {
-                    // Pruning.
-                    // We had explored another path indicating that MIN (black) player
-                    // could guarantee a max utility of Stage->Beta.
-                    // But from the current node, MAX (white) can get more than that
-                    // (at least Value, which a candidate for the new alpha here).
-                    // This means that MIN's last decision is not rational and we should
-                    // stop exploring the current node. We do not propagate the alpha.
-                    Assert(Context.CurrentDepth > 0);
-                    Stage[-1].DecisionIndex++;
-                    Context.CurrentDepth--;
-                    CopyGame(&Stage[-1].GameCopy, &Game);
-                    goto Goto_StageExploration;
-                }
-                Stage->Alpha = Value;
-                if (Context.CurrentDepth == 0)
-                {
-                    Result->Decision = Decision;
-                    Assert(AbsoluteValue(Result->Value) != 5000);
-                    Assert(Result->Value < Value);
-                    Result->Value = Value;
-                }
-            }
-            else if (!Game.BlackIsPlaying && Value < Stage->Beta)
-            {
-                if (Stage->Alpha >= Value)
-                {
-                    // Pruning.
-                    Assert(Context.CurrentDepth > 0);
-                    Stage[-1].DecisionIndex++;
-                    Context.CurrentDepth--;
-                    CopyGame(&Stage[-1].GameCopy, &Game);
-                    goto Goto_StageExploration;
-                }
-                Stage->Beta = Value;
-                if (Context.CurrentDepth == 0)
-                {
-                    Result->Decision = Decision;
-                    Assert(AbsoluteValue(Result->Value) != 5000);
-                    Assert(Result->Value > Value);
-                    Result->Value = Value;
-                }
-            }
-        }
-        else
-        {
-            Assert(AbsoluteValue(Value) != 5000);
-            Context.CurrentDepth++;
-            Stage[1].DecisionIndex = 0;
-            Stage[1].DecisionsCount = 0;
-            Stage[1].Alpha = Stage[0].Alpha;
-            Stage[1].Beta = Stage[0].Beta;
-            CopyGame(&Game, &Stage[1].GameCopy);
-            //Stage[1].GameCopy = *Game;
-            goto Goto_StageExploration;
-        }
-        
-        CopyGame(&Stage->GameCopy, &Game);
-    }
-    
-    Goto_PruningParent:
-    
-    
-    // NOTE(vincent): Value of current stage has been fully evaluated...
-    Assert(Stage->Alpha <= Stage->Beta);
-    if (Context.CurrentDepth > 0)
-    {
-        // ...propagate it up to the parent stage if it's better.
-        CopyGame(&Stage[-1].GameCopy, &Game);
-        
-        if (Game.BlackIsPlaying && (Stage->Alpha < Stage[-1].Beta))
-        {
-            Stage[-1].Beta = Stage->Alpha;
-            if (Context.CurrentDepth == 1)
-            {
-                Result->Decision = LastTopDecision;
-                Assert(Result->Value > Stage->Alpha);
-                Result->Value = Stage->Alpha;
-            }
-            else if (Stage[-1].Beta == Stage[-1].Alpha)
-            {
-                Context.CurrentDepth--;
-                Stage--;
-                goto Goto_PruningParent;
             }
             
+            for (u32 PieceIndex = 0; PieceIndex < 16; ++PieceIndex)
+            {
+                chess_piece *Piece = Pieces + PieceIndex;
+                u32 PieceDestCount = Piece->DestinationsCount;
+                for (u32 DestIndex = 0; DestIndex < PieceDestCount; ++DestIndex)
+                {
+                    if ((Piece->Destinations[DestIndex].DestCode >> 6) == 0)
+                    {
+                        decision *Dec = Stage->Decisions + Stage->DecisionsCount;
+                        Dec->Piece = Piece;
+                        Dec->Destination.DestCode = Piece->Destinations[DestIndex].DestCode;
+                        ++Stage->DecisionsCount;
+                    }
+                }
+            }
         }
-        else if (!Game.BlackIsPlaying && (Stage->Beta > Stage[-1].Alpha))
+        
+        for (; Stage->DecisionIndex < Stage->DecisionsCount; ++Stage->DecisionIndex)
         {
-            Stage[-1].Alpha = Stage->Beta;
-            if (Context.CurrentDepth == 1)
+            Assert(Game.BlackIsPlaying == (b32)(RootPlayerIsBlack ^ (Context.CurrentDepth & 1)));
+            
+            // NOTE(vincent): Apply move
+            decision Decision = Stage->Decisions[Stage->DecisionIndex];
+            s32 DestRow = Decision.Destination.DestCode & 7;
+            s32 DestCol = (Decision.Destination.DestCode >> 3) & 7;
+            Game.Cursor.Row = DestRow;
+            Game.Cursor.Column = DestCol;
+            Game.PieceOnCursor = GetPiece(Game.Blacks, Game.Whites,
+                                          Game.Cursor.Row, Game.Cursor.Column);
+            Assert(!Game.GameIsOver);
+            MovePieceToCursor(&Game, Decision.Piece, Decision.Destination.DestCode);
+            if (Game.PromotingPawn)
             {
-                Result->Decision = LastTopDecision;
-                Assert(Result->Value < Stage->Beta);
-                Result->Value = Stage->Beta;
+                Game.PromotingPawn = false;
+                Decision.Piece->Type = ChessPieceType_Queen;
+                history_entry *Entry = Game.History.Entries + Game.History.EntryCount-1;
+                Decision.PromotionType = ChessPieceType_Queen;
+                Entry->Special |= 7;
+                MovePieceAfterwork(&Game);
             }
-            else if (Stage[-1].Beta == Stage[-1].Alpha)
+            else
+                Decision.PromotionType = ChessPieceType_Empty;
+            Assert(!Game.BlackIsPlaying == (b32)(RootPlayerIsBlack ^ (Context.CurrentDepth & 1)));
+            
+            if (Context.CurrentDepth == 0)
+                LastTopDecision = Decision;
+            
+            f32 Value = 99999.0f;
+            
+            if (Game.RunningState == ChessGameRunningState_Checkmate)
+                Value = Game.BlackIsPlaying ? 5000 : -5000;
+            else if (Game.RunningState == ChessGameRunningState_Stalemate)
+                Value = 0;
+            else if (Context.CurrentDepth == MaxDepth - 1)
+                Value = HeuristicEvaluation(&Game, Series);
+            
+            if (Value != 99999.0f)
             {
-                Context.CurrentDepth--;
-                Stage--;
-                goto Goto_PruningParent;
+                if (Game.BlackIsPlaying && Value > Stage->Alpha)
+                {
+                    if (Value >= Stage->Beta)
+                    {
+                        // Pruning.
+                        // We had explored another path indicating that MIN (black) player
+                        // could guarantee a max utility of Stage->Beta.
+                        // But from the current node, MAX (white) can get more than that
+                        // (at least Value, which a candidate for the new alpha here).
+                        // This means that MIN's last decision is not rational and we should
+                        // stop exploring the current node. We do not propagate the alpha.
+                        Assert(Context.CurrentDepth > 0);
+                        Stage[-1].DecisionIndex++;
+                        Context.CurrentDepth--;
+                        CopyGame(&Stage[-1].GameCopy, &Game);
+                        goto Goto_StageExploration;
+                    }
+                    Stage->Alpha = Value;
+                    if (Context.CurrentDepth == 0)
+                    {
+                        Result->Decision = Decision;
+                        Assert(AbsoluteValue(Result->Value) != 5000);
+                        Assert(Result->Value < Value);
+                        Result->Value = Value;
+                    }
+                }
+                else if (!Game.BlackIsPlaying && Value < Stage->Beta)
+                {
+                    if (Stage->Alpha >= Value)
+                    {
+                        // Pruning.
+                        Assert(Context.CurrentDepth > 0);
+                        Stage[-1].DecisionIndex++;
+                        Context.CurrentDepth--;
+                        CopyGame(&Stage[-1].GameCopy, &Game);
+                        goto Goto_StageExploration;
+                    }
+                    Stage->Beta = Value;
+                    if (Context.CurrentDepth == 0)
+                    {
+                        Result->Decision = Decision;
+                        Assert(AbsoluteValue(Result->Value) != 5000);
+                        Assert(Result->Value > Value);
+                        Result->Value = Value;
+                    }
+                }
             }
+            else
+            {
+                Assert(AbsoluteValue(Value) != 5000);
+                Context.CurrentDepth++;
+                Stage[1].DecisionIndex = 0;
+                Stage[1].DecisionsCount = 0;
+                Stage[1].Alpha = Stage[0].Alpha;
+                Stage[1].Beta = Stage[0].Beta;
+                CopyGame(&Game, &Stage[1].GameCopy);
+                //Stage[1].GameCopy = *Game;
+                goto Goto_StageExploration;
+            }
+            
+            CopyGame(&Stage->GameCopy, &Game);
         }
         
-        Stage[-1].DecisionIndex++;
-        Context.CurrentDepth--;
+        Goto_PruningParent:
         
-        goto Goto_StageExploration;
+        
+        // NOTE(vincent): Value of current stage has been fully evaluated...
+        Assert(Stage->Alpha <= Stage->Beta);
+        if (Context.CurrentDepth > 0)
+        {
+            // ...propagate it up to the parent stage if it's better.
+            CopyGame(&Stage[-1].GameCopy, &Game);
+            
+            if (Game.BlackIsPlaying && (Stage->Alpha < Stage[-1].Beta))
+            {
+                Stage[-1].Beta = Stage->Alpha;
+                if (Context.CurrentDepth == 1)
+                {
+                    Result->Decision = LastTopDecision;
+                    Assert(Result->Value > Stage->Alpha);
+                    Result->Value = Stage->Alpha;
+                }
+                else if (Stage[-1].Beta == Stage[-1].Alpha)
+                {
+                    Context.CurrentDepth--;
+                    Stage--;
+                    goto Goto_PruningParent;
+                }
+                
+            }
+            else if (!Game.BlackIsPlaying && (Stage->Beta > Stage[-1].Alpha))
+            {
+                Stage[-1].Alpha = Stage->Beta;
+                if (Context.CurrentDepth == 1)
+                {
+                    Result->Decision = LastTopDecision;
+                    Assert(Result->Value < Stage->Beta);
+                    Result->Value = Stage->Beta;
+                }
+                else if (Stage[-1].Beta == Stage[-1].Alpha)
+                {
+                    Context.CurrentDepth--;
+                    Stage--;
+                    goto Goto_PruningParent;
+                }
+            }
+            
+            Stage[-1].DecisionIndex++;
+            Context.CurrentDepth--;
+            
+            goto Goto_StageExploration;
+        }
     }
-    
-    
     Goto_EndExploration:
     
     EndTemporaryMemory(StagesMemory);
@@ -2384,11 +2362,11 @@ PLATFORM_WORK_QUEUE_CALLBACK(GetGoodDecision)
     Assert(Result->Decision.Piece->Destinations && 
            Result->Decision.Piece->DestinationsCount);
     Result->Decision.Piece =
-    (chess_piece *)((u8 *)Game_ + ((u8 *)Result->Decision.Piece - (u8 *)&Game));
+        (chess_piece *)((u8 *)Game_ + ((u8 *)Result->Decision.Piece - (u8 *)&Game));
     Assert(Result->Decision.Piece->Destinations && 
            Result->Decision.Piece->DestinationsCount);
     
-    _WriteBarrier();
+    CompilerWriteBarrier;
     Params->Finished = true;
 }
 
@@ -2413,7 +2391,7 @@ AdvanceAIAction(game_state *State, chess_game_state *Game, f32 dt, random_series
             else
             {
 #if 0
-                // iterative max depth
+                // iterative max depth (outdated code, sorry)
                 for (u32 Depth = 1; Depth < AIType; ++Depth)
                 {
                     good_decision_result DecResult = 
@@ -2442,7 +2420,6 @@ AdvanceAIAction(game_state *State, chess_game_state *Game, f32 dt, random_series
         {
             if (AIState->WorkParams.Finished)
             {
-                //AIState->Decision = Decision;
                 Assert(AIState->WorkParams.Result.Decision.Piece->Destinations &&
                        AIState->WorkParams.Result.Decision.Piece->DestinationsCount);
                 AIState->OldCursorRow = Cursor->Row;
@@ -2550,12 +2527,15 @@ LoadSaveFile(game_state *State, memory_arena *FileArena)
     temporary_memory FileTempMemory = BeginTemporaryMemory(FileArena);
     
     char *SaveFilename = "chess_save";
+    
     string ReadResult = GlobalPlatform->PushReadFile(FileArena, SaveFilename);
+    memory_arena CopyArena = *FileArena;
     
     if (ReadResult.Base)
     {
         if (ReadResult.Size == sizeof(game_state))
         {
+            
             u8 *Source = (u8 *)ReadResult.Base;
             u8 *Dest = (u8 *)State;
             for (u32 Byte = 0; Byte < sizeof(game_state); ++Byte)
@@ -2563,32 +2543,36 @@ LoadSaveFile(game_state *State, memory_arena *FileArena)
                 *Dest++ = *Source++;
             }
             
+            
+            State->GlobalArena = CopyArena;;
+            
+            
             for (u32 i = 0; i < State->GamesCount; ++i)
             {
                 chess_game_state *Game = State->Games + i;
                 if (Game->SelectedPiece.Piece)
                 {
                     Game->SelectedPiece.Piece = 
-                    (chess_piece *)((u8 *)Game + (uintptr_t)Game->SelectedPiece.Piece);
+                        (chess_piece *)((u8 *)Game + (uintptr_t)Game->SelectedPiece.Piece);
                 }
                 if (Game->PieceOnCursor.Piece)
                 {
                     Game->PieceOnCursor.Piece = 
-                    (chess_piece *)((u8 *)Game + (uintptr_t)Game->PieceOnCursor.Piece);
+                        (chess_piece *)((u8 *)Game + (uintptr_t)Game->PieceOnCursor.Piece);
                 }
                 for (u32 PieceIndex = 0; PieceIndex < 16; ++PieceIndex)
                 {
                     if (Game->Blacks[PieceIndex].Destinations)
                     {
                         Game->Blacks[PieceIndex].Destinations =
-                        (destination *) ((u8 *)Game + 
-                                         (uintptr_t)Game->Blacks[PieceIndex].Destinations);
+                            (destination *) ((u8 *)Game + 
+                                             (uintptr_t)Game->Blacks[PieceIndex].Destinations);
                     }
                     if (Game->Whites[PieceIndex].Destinations)
                     {
                         Game->Whites[PieceIndex].Destinations = 
-                        (destination *) ((u8 *)Game + 
-                                         (uintptr_t)Game->Whites[PieceIndex].Destinations);
+                            (destination *) ((u8 *)Game + 
+                                             (uintptr_t)Game->Whites[PieceIndex].Destinations);
                     }
                     Assert((uintptr_t)Game->Blacks[PieceIndex].Destinations == 0 ||
                            (uintptr_t)Game->Blacks[PieceIndex].Destinations <= 
@@ -2627,8 +2611,8 @@ TransitionToGameplay(game_state *State, chess_game_state *Game)
     State->GameMode = GameMode_Gameplay;
     
     v2 NewBoardDim = 0.98f*V2(State->RenderGroup.ScreenDim.y, State->RenderGroup.ScreenDim.y);
-    InitMovingV2FromCurrent(&Game->Board.P, 0.5f * State->RenderGroup.ScreenDim, 5.0f);
-    InitMovingV2FromCurrent(&Game->Board.Dim, NewBoardDim, 5.0f);
+    InitMovingV2FromCurrent(&Game->Board.P, 0.5f * State->RenderGroup.ScreenDim, .5f);
+    InitMovingV2FromCurrent(&Game->Board.Dim, NewBoardDim, .5f);
 }
 
 internal void
@@ -2661,7 +2645,7 @@ StartNewGame(game_state *State)
         
         // NOTE(vincent): Setting the positions and dims of the boards from start screen
         // so that the newly created board is focused on when we go back to the start screen.
-        f32 BoardAnimDuration = 2.6f;
+        f32 BoardAnimDuration = .3f;
         for (s32 GameIndex = 0; GameIndex < (s32)State->GamesCount-1; ++GameIndex)
         {
             InitMovingV2FromCurrent(&State->Games[GameIndex].Board.Dim, V2(0.1f, 0.1f),
@@ -2684,7 +2668,7 @@ StartNewGame(game_state *State)
                      0.5f*State->RenderGroup.ScreenDim, 0.0f);
         
         v2 NewBoardDim = 0.98f*V2(State->RenderGroup.ScreenDim.y, State->RenderGroup.ScreenDim.y);
-        InitMovingV2(&Game->Board.Dim, V2(0,0), NewBoardDim, 12.0f);
+        InitMovingV2(&Game->Board.Dim, V2(0,0), NewBoardDim, 1.0f);
         
         Game->SelectedPiece.Piece = 0;
         Game->BlackIsPlaying = false;
@@ -2693,8 +2677,6 @@ StartNewGame(game_state *State)
         RecomputeDestinations(Game);
         
         //AssertDestPointersWithinBounds(Game);
-        
-        
         State->MenuY = 0;
     }
 }
@@ -2723,26 +2705,26 @@ DuplicateGame(game_state *State, u32 GameIndex)
             if (DestGame->SelectedPiece.Piece)
             {
                 DestGame->SelectedPiece.Piece =
-                (chess_piece *)((u8 *)DestGame->SelectedPiece.Piece + sizeof(chess_game_state));
+                    (chess_piece *)((u8 *)DestGame->SelectedPiece.Piece + sizeof(chess_game_state));
             }
             if (DestGame->PieceOnCursor.Piece)
             {
                 DestGame->PieceOnCursor.Piece =
-                (chess_piece *)((u8 *)DestGame->PieceOnCursor.Piece + sizeof(chess_game_state));
+                    (chess_piece *)((u8 *)DestGame->PieceOnCursor.Piece + sizeof(chess_game_state));
             }
             for (u32 i = 0; i < 16; ++i)
             {
                 if (DestGame->Blacks[i].Destinations)
                 {
                     DestGame->Blacks[i].Destinations =
-                    (destination *)((u8 *)DestGame->Blacks[i].Destinations + 
-                                    sizeof(chess_game_state));
+                        (destination *)((u8 *)DestGame->Blacks[i].Destinations + 
+                                        sizeof(chess_game_state));
                 }
                 if (DestGame->Whites[i].Destinations)
                 {
                     DestGame->Whites[i].Destinations =
-                    (destination *)((u8 *)DestGame->Whites[i].Destinations + 
-                                    sizeof(chess_game_state));
+                        (destination *)((u8 *)DestGame->Whites[i].Destinations + 
+                                        sizeof(chess_game_state));
                 }
             }
             //AssertDestPointersWithinBounds(DestGame);
@@ -2767,26 +2749,26 @@ DeleteGame(game_state *State, u32 GameIndex)
             if (DestGame->SelectedPiece.Piece)
             {
                 DestGame->SelectedPiece.Piece =
-                (chess_piece *)((u8 *)DestGame->SelectedPiece.Piece - sizeof(chess_game_state));
+                    (chess_piece *)((u8 *)DestGame->SelectedPiece.Piece - sizeof(chess_game_state));
             }
             if (DestGame->PieceOnCursor.Piece)
             {
                 DestGame->PieceOnCursor.Piece =
-                (chess_piece *)((u8 *)DestGame->PieceOnCursor.Piece - sizeof(chess_game_state));
+                    (chess_piece *)((u8 *)DestGame->PieceOnCursor.Piece - sizeof(chess_game_state));
             }
             for (u32 i = 0; i < 16; ++i)
             {
                 if (DestGame->Blacks[i].Destinations)
                 {
                     DestGame->Blacks[i].Destinations =
-                    (destination *)((u8 *)DestGame->Blacks[i].Destinations - 
-                                    sizeof(chess_game_state));
+                        (destination *)((u8 *)DestGame->Blacks[i].Destinations - 
+                                        sizeof(chess_game_state));
                 }
                 if (DestGame->Whites[i].Destinations)
                 {
                     DestGame->Whites[i].Destinations =
-                    (destination *)((u8 *)DestGame->Whites[i].Destinations - 
-                                    sizeof(chess_game_state));
+                        (destination *)((u8 *)DestGame->Whites[i].Destinations - 
+                                        sizeof(chess_game_state));
                 }
             }
             //AssertDestPointersWithinBounds(DestGame);
@@ -2854,38 +2836,19 @@ DrawGameBoard(render_group *Group, chess_game_state *Game, bitmap *BoardBitmap,
     
     // NOTE(vincent): Drawing the game board as a single 8*8 bitmap instead of multiple
     // rectangle entries turns out to be faster.
-#if 0
-    PushRect(Group, Board->P.Current - 0.5f*Board->Dim.Current, 
-             Board->P.Current + 0.5f*Board->Dim.Current, V4(.05f, .15f, 0, 1));
-    
-    for (u32 Column = 0; Column < 8; ++Column)
-    {
-        for (u32 Row = 0; Row < 8; ++Row)
-        {
-            if ((Row & 1) != (Column & 1))
-            {
-                v2 SquareP = BottomLeftSquareP + V2(Column * SquareDim.x, Row * SquareDim.y);
-                v2 SquareMin = SquareP - 0.5f*SquareDim;
-                v2 SquareMax = SquareP + 0.5f*SquareDim;
-                PushRect(Group, SquareMin, SquareMax, V4(.8f,.8f,.8f,1));
-            }
-        }
-    }
-#else
     PushBitmapNearest(Group, BoardBitmap, Board->P.Current - 0.5f*Board->Dim.Current, V2(Board->Dim.Current.x, 0),
                       V2(0, Board->Dim.Current.y), V4(1,1,1,1));
     
-#endif
     
     // NOTE(vincent): highlighting dest squares when a piece is selected
     if (Game->SelectedPiece.Piece)
     {
         chess_piece *SPiece = Game->SelectedPiece.Piece;
-        f32 DestSqDimRatio = 0.3f * Game->SelectedPieceT;
+        f32 DestSqDimRatio = 8.0f * Game->SelectedPieceT;
         if (DestSqDimRatio > 1.0f)
             DestSqDimRatio = 1.0f;
         v2 DestSquareDim = SquareDim * DestSqDimRatio;
-#define DestColorTPeriod 50.0f
+#define DestColorTPeriod 1.0f
         
         f32 NormalizedDestColorT = Game->DestColorT / DestColorTPeriod;
         f32 DestColorT = CubicHermite(NormalizedDestColorT);
@@ -3057,7 +3020,6 @@ DrawGameBoard(render_group *Group, chess_game_state *Game, bitmap *BoardBitmap,
     
     v2 UpperRightBracketMax = CursorSquareMax;
     v2 UpperRightBracketMin = UpperRightBracketMax - BracketDim;
-    v2 UpperRightJunction = UpperRightBracketMax - BracketThickness;
     v2 UpperRightRect1Min = 
         V2(UpperRightBracketMin.x, UpperRightBracketMax.y - BracketThickness.y);
     v2 UpperRightRect2Min = 
@@ -3120,16 +3082,15 @@ DrawGameStrings(render_group *Group, font *Font, chess_game_state *Game, f32 Rel
     PushNumber(Group, Game->History.EntryCount, Font, 0.0007f, V2(RelX + 0.04f, RelY), NumberColor);
 }
 
-
 extern "C"
 GAME_UPDATE(GameUpdate)
 {
     game_state *State = (game_state *)Memory->Storage;
     chess_game_state *Games = State->Games;
+    GlobalPlatform = &Memory->Platform;
     
     if (!State->IsInitialized)
     {
-        GlobalPlatform = &Memory->Platform;
         Assert(Memory->StorageSize >= 2*sizeof(game_state));
         InitializeArena(&State->GlobalArena, Memory->StorageSize - sizeof(game_state),
                         (u8 *)Memory->Storage + sizeof(game_state));
@@ -3193,7 +3154,6 @@ GAME_UPDATE(GameUpdate)
     render_group *Group = &State->RenderGroup;
     PushClear(Group, V4(0,0,0,1));
     
-    
     switch (State->GameMode)
     {
         case GameMode_StartScreen:
@@ -3216,7 +3176,7 @@ GAME_UPDATE(GameUpdate)
             
             State->CurrentGameIndex = State->MenuX;
             
-            f32 BoardAnimDuration = 2.6f;
+            f32 BoardAnimDuration = .2f;
             if (State->ShouldUpdateBoardMovingVectors)
             {
                 for (s32 GameIndex = 0; (u32)GameIndex < State->GamesCount; ++GameIndex)
@@ -3409,7 +3369,6 @@ PushText(Group, String, &State->Assets->Font, 0.0007f, V2(MenuStringX, MenuStrin
                 InvalidDefaultCase;
             }
             
-            
             PushText(Group, "Black player type", &State->Assets->Font, Scale,
                      V2(MarginLeft, 0.2f), 
                      State->MenuY == 0 ? HoveredTextColor : TextColor);
@@ -3446,7 +3405,6 @@ PushText(Group, String, &State->Assets->Font, 0.0007f, V2(MenuStringX, MenuStrin
             
             f32 Scale = 0.0008f;
             f32 MarginLeft = 0.215f;
-            f32 MarginLeft2 = 0.5f*Group->ScreenDim.x + MarginLeft;
             
             v4 TextColor = V4(1,1,1,1);
             v4 HoveredTextColor = V4(0.5f, 1.0f, 0.4f, 1.0f);
@@ -3598,8 +3556,9 @@ PushText(Group, String, &State->Assets->Font, 0.0007f, V2(MenuStringX, MenuStrin
             
 #define PushNum(Number, Vector) \
 PushNumber(Group, Number, &State->Assets->Font, 0.0007f, Vector, V4(1,1,1,1))
-#if 0
             
+            // NOTE(vincent): Turn this on for visualizing joystick values, mouse values and more!
+#if 0
             u32 BlacksDestCount = 0;
             for (u32 i = 0; i < ArrayCount(Game->Blacks); ++i)
             {
@@ -3647,25 +3606,16 @@ PushNumber(Group, Number, &State->Assets->Font, 0.0007f, Vector, V4(1,1,1,1))
             PushRect(Group, RectCenterDim(RectStickP, RectStickDim), 
                      V4(0.8f, 0.8f, 0.8f, 0.9f));
             
-            
 #endif
             DrawGameStrings(Group, &State->Assets->Font, Game, 0.01f, 0.15f);
         } break;
         InvalidDefaultCase;
     }
     
-#if DEBUG
-    for (u32 GameIndex = 0; GameIndex < State->GamesCount; ++GameIndex)
-    {
-        chess_game_state *Game = State->Games + GameIndex;
-        //AssertDestPointersWithinBounds(Game);
-    }
-#endif
     
     if (State->ShouldSave)
     {
         State->ShouldSave = false;
-        State->SaveT -= 20.0f;
         temporary_memory SaveTempMemory = BeginTemporaryMemory(&State->GlobalArena);
         game_state *CopyGameState = PushStruct(&State->GlobalArena, game_state);
         *CopyGameState = *State;
@@ -3682,30 +3632,29 @@ PushNumber(Group, Number, &State->Assets->Font, 0.0007f, Vector, V4(1,1,1,1))
             if (Game->SelectedPiece.Piece)
             {
                 Game->SelectedPiece.Piece =
-                (chess_piece *)((u8*)Game->SelectedPiece.Piece - (u8*)OriginalGame);
+                    (chess_piece *)((u8*)Game->SelectedPiece.Piece - (u8*)OriginalGame);
             }
             if (Game->PieceOnCursor.Piece)
             {
                 Game->PieceOnCursor.Piece =
-                (chess_piece *)((u8*)Game->PieceOnCursor.Piece - (u8*)OriginalGame);
+                    (chess_piece *)((u8*)Game->PieceOnCursor.Piece - (u8*)OriginalGame);
             }
             for (u32 PieceIndex = 0; PieceIndex < 16; ++PieceIndex)
             {
                 if (Game->Blacks[PieceIndex].Destinations)
                 {
                     Game->Blacks[PieceIndex].Destinations =
-                    (destination *)((u8 *)Game->Blacks[PieceIndex].Destinations - (u8 *)OriginalGame);
+                        (destination *)((u8 *)Game->Blacks[PieceIndex].Destinations - (u8 *)OriginalGame);
                 }
                 if (Game->Whites[PieceIndex].Destinations)
                 {
                     Game->Whites[PieceIndex].Destinations =
-                    (destination *)((u8 *)Game->Whites[PieceIndex].Destinations - (u8 *)OriginalGame);
+                        (destination *)((u8 *)Game->Whites[PieceIndex].Destinations - (u8 *)OriginalGame);
                 }
             }
         }
         CopyGameState->IsInitialized = false;
         
-        // TODO(vincent): Thread this ?
         GlobalPlatform->WriteFile("chess_save", sizeof(game_state), CopyGameState);
         
         EndTemporaryMemory(SaveTempMemory);

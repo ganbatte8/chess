@@ -812,7 +812,7 @@ SquareRoot(f32 t)
     x = 0.5f*(x + SafeRatio0(t, x));
     
     Assert(x >= 0.0f);
-#if DEBUG
+#if 1
     f32 AbsError = AbsoluteValue(x*x - t);
     f32 RelError = SafeRatio0(AbsError, t);
     Assert(RelError <= 0.001f);

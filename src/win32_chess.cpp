@@ -189,8 +189,7 @@ ToggleFullScreen(HWND Window)
 
 global_variable GLuint GlobalBlitTextureHandle;
 internal void
-Win32DisplayBufferInWindow(platform_work_queue *Queue, game_render_commands *Commands, HWND Window,
-                           game_memory *Memory)
+Win32DisplayBufferInWindow(game_render_commands *Commands, HWND Window)
 {
     RECT ClientRect;
     GetClientRect(Window, &ClientRect);
@@ -470,7 +469,7 @@ Win32InitOpenGL(HWND Window)
         // NOTE(vincent): Successfully set OpenGL context
         
         wgl_create_context_attribs_arb *wglCreateContextAttribsARB =
-        (wgl_create_context_attribs_arb *)wglGetProcAddress("wglCreateContextAttribsARB");
+            (wgl_create_context_attribs_arb *)wglGetProcAddress("wglCreateContextAttribsARB");
         
         if (wglCreateContextAttribsARB)
         {
@@ -531,7 +530,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     WNDCLASSA WindowClass = {0};
     WindowClass.style = CS_HREDRAW | CS_VREDRAW;  // redraw window on resize
     
-    
     WindowClass.lpfnWndProc = WindowProc;
     WindowClass.hInstance = hInstance;
     WindowClass.hCursor = LoadCursorA(0, IDC_ARROW);
@@ -550,7 +548,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     Assert(Window && "Couldn't create the window");
     Win32InitOpenGL(Window);
     
-    
     Win32PrepareBackbuffer(&GlobalBackbuffer, 960, 540);
     
     Win32LoadXInput();
@@ -561,6 +558,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     
     f32 GameUpdateHz = 60.0f;
     f32 TargetSecondsPerFrame = 1.0f / (f32)GameUpdateHz;
+    f32 EffectiveTargetSecondsPerFrame = TargetSecondsPerFrame;  // changes over time
     GlobalGameInput.dtForFrame = TargetSecondsPerFrame;
     QueryPerformanceFrequency(&GlobalCountsPerSecond);
     LARGE_INTEGER InitialWallClock = Win32GetWallClock();
@@ -571,7 +569,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     
     game_memory GameMemory = {};
     GameMemory.StorageSize = Gigabytes(1);
-    LPVOID BaseAddress = (LPVOID) Terabytes(2);
+    LPVOID BaseAddress = (LPVOID)0;// Terabytes(2);
     GameMemory.Storage = VirtualAlloc(BaseAddress, GameMemory.StorageSize,
                                       MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     Assert(GameMemory.Storage);
@@ -622,12 +620,14 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
             f32 NormalizedLY = (Pad->sThumbLY + 0.5f) / 32767.5f;
             
             f32 Magnitude = SquareRoot(Square(NormalizedLX) + Square(NormalizedLY));
+            // NOTE(vincent): I sort of expect Magnitude to be <= 1.0f, but it might not be.
+            // I can imagine that some joysticks will allow (NormalizedLX, NormalizedLY) 
+            // to be outside of the unit circle. For this game I don't care too much.
+            // Worst case, Magnitude can go up to sqrt(2).
             
             f32 Deadzone = 0.25f;
-            f32 ProcessedMagnitude;
-            if (Magnitude <= Deadzone)
-                ProcessedMagnitude = 0.0f;
-            else
+            f32 ProcessedMagnitude = 0.0f;
+            if (Magnitude > Deadzone)
                 ProcessedMagnitude = (Magnitude - Deadzone) / (1.0f - Deadzone);
             
             f32 MagnitudeRatio = SafeRatio0(ProcessedMagnitude, Magnitude);
@@ -640,29 +640,29 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
             if (!GlobalGameInput.Left.IsPressed)
             {
                 GlobalGameInput.Left.IsPressed = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT) || 
-                (GlobalGameInput.ThumbLX <= -.5f);
+                    (GlobalGameInput.ThumbLX <= -.5f);
                 GlobalGameInput.Left.AutoRelease = true;
             }
             
             if (!GlobalGameInput.Down.IsPressed)
             {
                 GlobalGameInput.Down.IsPressed = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN) || 
-                (GlobalGameInput.ThumbLY <= -.5f);
+                    (GlobalGameInput.ThumbLY <= -.5f);
                 GlobalGameInput.Down.AutoRelease = true;
             }
             
             if (!GlobalGameInput.Up.IsPressed)
             {
                 GlobalGameInput.Up.IsPressed = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_UP) || 
-                (GlobalGameInput.ThumbLY >= .5f);
+                    (GlobalGameInput.ThumbLY >= .5f);
                 GlobalGameInput.Up.AutoRelease = true;
             }
             
             if (!GlobalGameInput.Right.IsPressed)
             {
                 GlobalGameInput.Right.IsPressed = 
-                (Pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT) || 
-                (GlobalGameInput.ThumbLX >= .5f);
+                    (Pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT) || 
+                    (GlobalGameInput.ThumbLX >= .5f);
                 GlobalGameInput.Right.AutoRelease = true;
             }
             
@@ -688,7 +688,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
                 GlobalGameInput.Forward.IsPressed = ((Pad->wButtons & XINPUT_GAMEPAD_Y) != 0);
                 GlobalGameInput.Forward.AutoRelease = true;
             }
-            
         }
         
         // NOTE(vincent): Check DLL write time and reload it if it's new
@@ -704,24 +703,31 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         GameCode.Update(&GameMemory, &GlobalGameInput, &RenderCommands);
         
         Win32DisplayBufferInWindow(&Queue, &RenderCommands, Window, &GameMemory);
-        RenderCommands.PushBufferSize = 0;
         
         // NOTE(vincent): wait for frame time to finish
-        LARGE_INTEGER WorkCounter = Win32GetWallClock();
-        f32 WorkSecondsElapsed = Win32GetSecondsElapsed(LastWallClock, WorkCounter);
+        LARGE_INTEGER NewWallClock = Win32GetWallClock();
+        f32 WorkSecondsElapsed = Win32GetSecondsElapsed(LastWallClock, NewWallClock);
         f32 SecondsElapsedForFrame = WorkSecondsElapsed;
-        if (SecondsElapsedForFrame < TargetSecondsPerFrame)
+        if (SecondsElapsedForFrame < EffectiveTargetSecondsPerFrame)
         {
+            // sleep wait + spinlock wait
             if (SleepIsGranular)
             {
-                DWORD SleepMS = (DWORD) (1000.0f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
+                DWORD SleepMS = (DWORD) (1000.0f * (EffectiveTargetSecondsPerFrame - 
+                                                    SecondsElapsedForFrame));
                 if (SleepMS > 0)
                     Sleep(SleepMS);
             }
-            SecondsElapsedForFrame = Win32GetSecondsElapsed(LastWallClock, Win32GetWallClock());
             
-            while (SecondsElapsedForFrame < TargetSecondsPerFrame)
-                SecondsElapsedForFrame = Win32GetSecondsElapsed(LastWallClock, Win32GetWallClock());
+            do {
+                NewWallClock = Win32GetWallClock();
+                SecondsElapsedForFrame = Win32GetSecondsElapsed(LastWallClock, NewWallClock);
+            } while (SecondsElapsedForFrame < EffectiveTargetSecondsPerFrame);
+            
         }
+        
+        LastWallClock = NewWallClock;
+        f32 Overwait = SecondsElapsedForFrame - EffectiveTargetSecondsPerFrame;
+        EffectiveTargetSecondsPerFrame = TargetSecondsPerFrame - Overwait;
     }
 }

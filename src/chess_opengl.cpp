@@ -11,6 +11,9 @@
 #define WGL_CONTEXT_CORE_PROFILE_BIT_ARB             0x00000001
 #define WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB    0x00000001
 
+// TODO(vincent): What's the point of the backbuffer memory in Windows (and potentially XCB)
+// when we are using OpenGL?? Is OpenGL actually outputting some data to the backbuffer?
+
 struct opengl_info
 {
     b32 ModernContext;
@@ -33,7 +36,7 @@ OpenGLGetInfo(b32 ModernContext)
     // NOTE(vincent): GL_SHADING_LANGUAGE_VERSION is an OpenGL 2.0 extension
     if (Result.ModernContext)
         Result.ShadingLanguageVersion = (char *)glGetString(GL_SHADING_LANGUAGE_VERSION);
-    Result.Extensions = (char *)glGetString(GL_EXTENSIONS);;
+    Result.Extensions = (char *)glGetString(GL_EXTENSIONS);
     
     char *At = Result.Extensions;
     while (*At)
@@ -54,7 +57,7 @@ OpenGLGetInfo(b32 ModernContext)
 internal void
 OpenGLInit(b32 ModernContext)
 {
-    opengl_info OpenGLInfo = OpenGLGetInfo(ModernContext);
+    //opengl_info OpenGLInfo = OpenGLGetInfo(ModernContext);
 }
 
 inline void
@@ -163,8 +166,6 @@ OpenGLRenderToOutput(game_render_commands *Commands, s32 WindowWidth, s32 Window
                 Assert(Entry->Bitmap);
                 // Origin, XAxis, YAxis
                 
-                v2 XAxis = {1, 0};
-                v2 YAxis = {0, 1};
                 v2 MinP = Entry->Origin;
                 v2 MaxP = MinP + Entry->XAxis + Entry->YAxis;
                 
@@ -196,8 +197,6 @@ OpenGLRenderToOutput(game_render_commands *Commands, s32 WindowWidth, s32 Window
                 Assert(Entry->Bitmap);
                 // Origin, XAxis, YAxis
                 
-                v2 XAxis = {1, 0};
-                v2 YAxis = {0, 1};
                 v2 MinP = Entry->Origin;
                 v2 MaxP = MinP + Entry->XAxis + Entry->YAxis;
                 
